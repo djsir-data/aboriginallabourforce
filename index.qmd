@@ -1,0 +1,116 @@
+---
+title: "ATSI Employment in Victoria"
+author: "Strategy and Priority Project - Data and Analytics"
+format: html
+editor: visual
+date: "`r Sys.Date()`"
+execute:
+  echo: false
+---
+
+```{r output=FALSE}
+# Packages
+library(dplyr)
+library(tidyr)
+library(readr)
+library(readabs)
+library(leaflet)
+library(sf)
+library(strayr)
+library(stringr)
+library(slider)
+library(htmltools)
+
+# Get data
+census <- read_csv("data/census.csv")
+lfs <- read_abs(cat_no = "6291.0.55.001", tables = 16)
+sa3 <- read_absmap(area = "sa3", year = 2021)
+
+# Find vic SA3
+vic_sa4 <- sa3 %>% 
+  filter(state_name_2021 == "Victoria") %>% 
+  pull(sa4_name_2021) %>% 
+  unique() %>% 
+  str_subset("No usual address|Migratory", negate = T) %>% 
+  str_replace("^North West$", "Victoria - North West")
+
+# clean LFS
+lfs <- lfs %>% 
+  separate_series() %>% 
+  filter(date >= "2020-08-01", series_3 == "Persons", series_1 %in% vic_sa4) %>% 
+  select(date, sa4 = series_1, measure = series_2, value) %>% 
+  pivot_wider(names_from = measure, values_from = value) %>% 
+  transmute(
+    date,
+    sa4,
+    employed_grow = `Employed total`,
+    unemployed_grow = `Unemployed total`,
+    nilf_grow = 
+      `Labour force total` / `Participation rate` - `Labour force total`
+  ) %>% 
+  group_by(sa4) %>% 
+  arrange(date) %>% 
+  mutate(across(contains("grow"), ~ . / first(.))) %>% 
+  mutate(across(contains("grow"), ~ slide_mean(., before = 2))) %>% 
+  ungroup()
+
+# combine data and scale over time
+census <- mutate(census, sa3 = as.character(sa3))
+combo <- right_join(sa3, census, by = c("sa3_code_2021" = "sa3")) %>% 
+  full_join(
+    lfs, 
+    by = c("sa4_name_2021" = "sa4"), 
+    relationship = "many-to-many"
+    ) %>% 
+  mutate(
+    employed = employed * employed_grow,
+    unemployed = unemployed * unemployed_grow,
+    nilf_grow = nilf * nilf_grow,
+    unemp_rate = unemployed / (employed + unemployed),
+    part_rate = (employed + unemployed) / (employed + unemployed + nilf),
+    emp_pop = employed / (employed + unemployed + nilf)
+  )
+```
+
+The following data estimates Aboriginal and Torres Straight Islander (ATSI) unemployment rates for Victorian regions as of `r format(max(combo$date, na.rm = T), "%B %Y")`. This data reflects [2021 census employment](https://www.abs.gov.au/statistics/microdata-tablebuilder/tablebuilder) levels for ATSI peoples, adjusted for [fluctuations in regional employment levels](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) that have occurred since August 2021. As the Bureau of Statistics does not report regional statistics for ATSI people at a regional level over time, any changes in employment since August 2021 only reflect the broader region's employment trend, not improvement or deterioration in employment outcomes specific to ATSI people.
+
+## Maping employment
+```{r}
+mapdata <- combo %>% 
+  filter(date == max(date, na.rm = T), ind == "ATSI") %>% 
+  mutate(
+    label = sprintf(
+        "<h3>%s</h3>
+        <p>Estimate ATSI labour statistics:</p>
+        <ul style = \"padding-left: 1.2em;\">
+          <li>Unemployment rate: %s</li>
+          <li>Participation rate: %s</li>
+          <li>Population >15 years old: %s</li>
+        </ul>",
+        sa3_name_2021,
+        paste0(round(unemp_rate, 3) * 100, "%"),
+        paste0(round(part_rate, 3) * 100, "%"),
+        scales::comma(round(nilf + unemployed + employed))
+      )
+  )
+
+pal <- colorNumeric("viridis", domain = mapdata$unemp_rate)
+
+mapdata %>% 
+  leaflet() %>% 
+  addProviderTiles("Esri.WorldGrayCanvas") %>% 
+  addPolygons(
+    fillColor = ~pal(unemp_rate),
+    fillOpacity = 0.8,
+    weight = 1,
+    color = "#FFFFFF",
+    label = ~lapply(label, HTML)
+  ) %>% 
+  addLegend(
+    pal = pal,
+    values = ~unemp_rate, 
+    title = "Unemployment</br>Rate",
+    labFormat = labelFormat(suffix = "%", transform = \(x) round(x * 100, 1))
+  )
+```
+
