@@ -6,6 +6,8 @@ editor: visual
 date: "`r Sys.Date()`"
 execute:
   echo: false
+abstract: 
+  "The following data estimates Aboriginal and Torres Straight Islander (ATSI) unemployment rates for Victorian regions. This data reflects [2021 census employment](https://www.abs.gov.au/statistics/microdata-tablebuilder/tablebuilder) levels for ATSI peoples, adjusted for [fluctuations in regional employment levels](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) that have occurred since August 2021. As the Bureau of Statistics does not report regional statistics for ATSI people at a regional level over time, any changes in employment since August 2021 only reflect the broader region's employment trend, not improvement or deterioration in employment outcomes specific to ATSI people."
 ---
 
 ```{r output=FALSE}
@@ -42,7 +44,7 @@ lfs <- lfs %>%
   pivot_wider(names_from = measure, values_from = value) %>% 
   transmute(
     date,
-    sa4,
+    sa4 = recode(sa4, "Victoria - North West" = "North West"),
     employed_grow = `Employed total`,
     unemployed_grow = `Unemployed total`,
     nilf_grow = 
@@ -72,15 +74,14 @@ combo <- right_join(sa3, census, by = c("sa3_code_2021" = "sa3")) %>%
   )
 ```
 
-The following data estimates Aboriginal and Torres Straight Islander (ATSI) unemployment rates for Victorian regions as of `r format(max(combo$date, na.rm = T), "%B %Y")`. This data reflects [2021 census employment](https://www.abs.gov.au/statistics/microdata-tablebuilder/tablebuilder) levels for ATSI peoples, adjusted for [fluctuations in regional employment levels](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) that have occurred since August 2021. As the Bureau of Statistics does not report regional statistics for ATSI people at a regional level over time, any changes in employment since August 2021 only reflect the broader region's employment trend, not improvement or deterioration in employment outcomes specific to ATSI people.
-
 ## Maping employment
+The following provides unemployment rates, participation rates and estimate working-age population of ATSI peoples by region. Regions are defined using the [Australian Bureau of Statistics Statistical Area level 3](https://www.abs.gov.au/statistics/statistical-geography/australian-statistical-geography-standard-asgs). Please note that due to sample size issues, some regions may report an unemployment rate of zero. These observations likely represent statistical anomalies rather than underlying conditions. 
 ```{r}
 mapdata <- combo %>% 
   filter(date == max(date, na.rm = T), ind == "ATSI") %>% 
   mutate(
     label = sprintf(
-        "<h3>%s</h3>
+        "<strong style=\"font-size:1rem;\">%s</strong>
         <p>Estimate ATSI labour statistics:</p>
         <ul style = \"padding-left: 1.2em;\">
           <li>Unemployment rate: %s</li>
@@ -104,7 +105,11 @@ mapdata %>%
     fillOpacity = 0.8,
     weight = 1,
     color = "#FFFFFF",
-    label = ~lapply(label, HTML)
+    label = ~lapply(label, HTML),
+    highlightOptions = highlightOptions(
+      weight = 3, 
+      opacity = 1
+    )
   ) %>% 
   addLegend(
     pal = pal,
