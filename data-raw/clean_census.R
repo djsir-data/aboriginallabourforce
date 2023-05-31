@@ -32,7 +32,7 @@ census <- census %>%
   bind_rows(census_total) %>% 
   mutate(
     unemp_rate = unemployed / (employed + unemployed),
-    part_rat = (employed + unemployed) / (employed + unemployed + nilf),
+    part_rate = (employed + unemployed) / (employed + unemployed + nilf),
     emp_pop = employed / (employed + unemployed + nilf)
     )
 

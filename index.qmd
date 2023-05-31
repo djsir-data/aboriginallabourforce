@@ -4,10 +4,15 @@ author: "Strategy and Priority Project - Data and Analytics"
 format: html
 editor: visual
 date: "`r Sys.Date()`"
+toc: true
+copyright: 
+  text: "Victorian Government Department of Jobs, Skills, Industry and Regions"
+# license: CC BY
 execute:
   echo: false
+  warning: false
 abstract: 
-  "The following data estimates Aboriginal and Torres Straight Islander (ATSI) unemployment rates for Victorian regions. This data reflects [2021 census employment](https://www.abs.gov.au/statistics/microdata-tablebuilder/tablebuilder) levels for ATSI peoples, adjusted for [fluctuations in regional employment levels](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) that have occurred since August 2021. As the Bureau of Statistics does not report regional statistics for ATSI people at a regional level over time, any changes in employment since August 2021 only reflect the broader region's employment trend, not improvement or deterioration in employment outcomes specific to ATSI people."
+  "The following data estimates Aboriginal and Torres Straight Islander (ATSI) unemployment rates for Victorian regions as of `r format(readabs::check_latest_date(cat_no = '6291.0.55.001', tables = 16), '%B %Y')`. This data reflects [2021 census employment](https://www.abs.gov.au/statistics/microdata-tablebuilder/tablebuilder) levels for ATSI peoples, adjusted for [fluctuations in regional employment levels](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) that have occurred since August 2021. As the Bureau of Statistics does not report regional statistics for ATSI people at a regional level over time, any changes in employment since August 2021 only reflect the broader region's employment trend, not improvement or deterioration in employment outcomes specific to ATSI people."
 ---
 
 ```{r output=FALSE}
@@ -22,10 +27,13 @@ library(strayr)
 library(stringr)
 library(slider)
 library(htmltools)
+library(highcharter)
+library(writexl)
+library(DT)
 
 # Get data
 census <- read_csv("data/census.csv")
-lfs <- read_abs(cat_no = "6291.0.55.001", tables = 16)
+lfs_raw <- read_abs(cat_no = "6291.0.55.001", tables = 16) %>% separate_series()
 sa3 <- read_absmap(area = "sa3", year = 2021)
 
 # Find vic SA3
@@ -37,24 +45,35 @@ vic_sa4 <- sa3 %>%
   str_replace("^North West$", "Victoria - North West")
 
 # clean LFS
-lfs <- lfs %>% 
-  separate_series() %>% 
-  filter(date >= "2020-08-01", series_3 == "Persons", series_1 %in% vic_sa4) %>% 
+lfs <- lfs_raw %>% 
+  filter(series_1 %in% vic_sa4, series_3 == "Persons") %>% 
   select(date, sa4 = series_1, measure = series_2, value) %>% 
-  pivot_wider(names_from = measure, values_from = value) %>% 
+  pivot_wider(names_from = measure, values_from = value) %>%
+  group_by(sa4) %>% 
+  arrange(date) %>% 
+  mutate(
+    across(
+      all_of(
+        c(
+          "Unemployment rate", 
+          "Participation rate", 
+          "Employment to population ratio"
+          )
+        ), 
+      ~slide_mean(., before = 2)
+      )
+    ) %>% 
+  filter(date >= "2020-08-01") %>% 
   transmute(
     date,
     sa4 = recode(sa4, "Victoria - North West" = "North West"),
-    employed_grow = `Employed total`,
-    unemployed_grow = `Unemployed total`,
-    nilf_grow = 
-      `Labour force total` / `Participation rate` - `Labour force total`
+    unemp_rate_grow = `Unemployment rate` / first(`Unemployment rate`),
+    part_rate_grow = `Participation rate` / first(`Participation rate`),
+    emp_pop_grow = `Employment to population ratio` / 
+      first(`Employment to population ratio`)
   ) %>% 
-  group_by(sa4) %>% 
-  arrange(date) %>% 
-  mutate(across(contains("grow"), ~ . / first(.))) %>% 
-  mutate(across(contains("grow"), ~ slide_mean(., before = 2))) %>% 
-  ungroup()
+  ungroup() #%>% 
+  # mutate(across(contains("grow"), ~ . / 100))
 
 # combine data and scale over time
 census <- mutate(census, sa3 = as.character(sa3))
@@ -65,33 +84,87 @@ combo <- right_join(sa3, census, by = c("sa3_code_2021" = "sa3")) %>%
     relationship = "many-to-many"
     ) %>% 
   mutate(
-    employed = employed * employed_grow,
-    unemployed = unemployed * unemployed_grow,
-    nilf_grow = nilf * nilf_grow,
-    unemp_rate = unemployed / (employed + unemployed),
-    part_rate = (employed + unemployed) / (employed + unemployed + nilf),
-    emp_pop = employed / (employed + unemployed + nilf)
+    unemp_rate = unemp_rate * unemp_rate_grow,
+    part_rate = part_rate * part_rate_grow,
+    emp_pop = emp_pop * emp_pop_grow
   )
 ```
 
+
+
+```{r}
+## Headline employment statistics 
+# The following charts show estimate Victoria-wide ATSI employment statistics and compare them with broader population values. 
+# lfs_scalars <- lfs_raw %>% 
+#   filter(date >= "2020-08-01", series_3 == "Persons", series_1 == "Victoria") %>% 
+#   select(date, measure = series_2, value) %>% 
+#   pivot_wider(names_from = measure, values_from = value) %>%
+#   arrange(date) %>% 
+#   transmute(
+#     date,
+#     unemp_rate_grow = `Unemployment rate` / first(`Unemployment rate`),
+#     part_rate_grow = `Participation rate` / first(`Participation rate`),
+#     emp_pop_grow = `Employment to population ratio` / 
+#       first(`Employment to population ratio`)
+#   ) %>% 
+#   filter(date == max(date))
+# 
+# headline_data <- census %>% 
+#   group_by(ind) %>% 
+#   summarise(
+#     employed = sum(employed),
+#     unemployed = sum(unemployed),
+#     nilf = sum(nilf)
+#   ) %>% 
+#   ungroup() %>% 
+#   mutate(
+#     unemp_rate = unemployed / (employed + unemployed),
+#     part_rate = (employed + unemployed) / (employed + unemployed + nilf),
+#     emp_pop = employed / (employed + unemployed + nilf),
+#     unemp_rate = unemp_rate * lfs_scalars$unemp_rate_grow,
+#     part_rate = part_rate * lfs_scalars$part_rate_grow,
+#     emp_pop = emp_pop * lfs_scalars$emp_pop_grow
+#   )
+
+
+```
+
 ## Maping employment
-The following provides unemployment rates, participation rates and estimate working-age population of ATSI peoples by region. Regions are defined using the [Australian Bureau of Statistics Statistical Area level 3](https://www.abs.gov.au/statistics/statistical-geography/australian-statistical-geography-standard-asgs). Please note that due to sample size issues, some regions may report an unemployment rate of zero. These observations likely represent statistical anomalies rather than underlying conditions. 
+
+The following provides unemployment rates, participation rates and estimate working-age population of ATSI peoples by region. Regions are defined using the [Australian Bureau of Statistics Statistical Area level 3](https://www.abs.gov.au/statistics/statistical-geography/australian-statistical-geography-standard-asgs). Please note that due to sample size issues, some regions may report an unemployment rate of zero. These observations likely represent statistical anomalies rather than underlying conditions.
+
 ```{r}
 mapdata <- combo %>% 
+  group_by(sa3_name_2021, ind) %>% 
+  mutate(
+    unemp_rate_flag = unemp_rate < 0.01 | unemp_rate > 1,
+    unemp_rate = ifelse(unemp_rate_flag, first(unemp_rate), unemp_rate),
+    part_rate_flag = part_rate < 0.2 | part_rate > 1,
+    part_rate = ifelse(part_rate_flag, first(part_rate), part_rate),
+  ) %>% 
+  ungroup() %>% 
   filter(date == max(date, na.rm = T), ind == "ATSI") %>% 
   mutate(
     label = sprintf(
         "<strong style=\"font-size:1rem;\">%s</strong>
         <p>Estimate ATSI labour statistics:</p>
         <ul style = \"padding-left: 1.2em;\">
-          <li>Unemployment rate: %s</li>
-          <li>Participation rate: %s</li>
-          <li>Population >15 years old: %s</li>
-        </ul>",
+          <li>Unemployment rate: %s%s</li>
+          <li>Participation rate: %s%s</li>
+          <li>Census population >15yo: %s</li>
+        </ul>
+        %s",
         sa3_name_2021,
         paste0(round(unemp_rate, 3) * 100, "%"),
+        ifelse(unemp_rate_flag, "*", ""),
         paste0(round(part_rate, 3) * 100, "%"),
-        scales::comma(round(nilf + unemployed + employed))
+        ifelse(part_rate_flag, "*", ""),
+        scales::comma(round(nilf + unemployed + employed)),
+        ifelse(
+          unemp_rate_flag|part_rate_flag, 
+          "<p><small>* 2021 census value used as forecast non-viable</small><p>",
+          ""
+          )
       )
   )
 
@@ -119,3 +192,181 @@ mapdata %>%
   )
 ```
 
+The following chart demonstrates how unemployment rates vary with distance from Melbourne.
+
+```{r}
+melb <- mapdata %>% 
+  filter(sa3_name_2021 == "Melbourne City") %>% 
+  st_centroid()
+
+chart_data <- mapdata %>% 
+  st_centroid() %>% 
+  mutate(
+    distance = st_distance(geometry, melb),
+    distance = as.numeric(distance) / 1000
+    )
+
+trend_unemp <- loess(unemp_rate ~ distance, data = chart_data, span = 0.75)
+trend_unemp <- data.frame(
+  x = as.vector(trend_unemp$x), 
+  y = trend_unemp$fitted
+  ) %>% 
+  arrange(x) %>% 
+  highcharter::list_parse()
+
+hchart(
+  chart_data, 
+  type = "point", 
+  hcaes(x = distance, y = unemp_rate, name = sa3_name_2021),
+  name = "Regional unemployment rate"
+  ) %>% 
+  hc_add_series(
+    data = trend_unemp, 
+    type = "spline", 
+    name = "Trend", 
+    enableMouseTracking = FALSE
+    ) %>% 
+  hc_title(
+    text = "Unemployment rates are higher in Victoria's regional areas"
+  ) %>% 
+  hc_subtitle(
+    text = "Regional ATSI unemployment rates by distance from Melbourne and smoothed trend line"
+  ) %>% 
+  hc_tooltip(
+    formatter = JS(
+      "function () {
+            return '<strong>' + this.point.name + '</strong></br>'+
+            'Unemployment rate: ' + Math.round(this.y * 1000) / 10 + '%</br>' +
+            'Distance from Melbourne: ' + Math.round(this.x) + 'km';
+        }"
+    )
+  ) %>% 
+  hc_yAxis(
+    title = list(text = "Unemployment rate"),
+    labels = list(
+      formatter = JS(
+        "function () {
+            return Math.round(this.value * 1000) / 10 + '%';
+        }"
+      )
+         
+    )
+  ) %>% 
+  hc_xAxis(
+    title = list(text = "Distance from Melbourne"),
+    labels = list(
+      formatter = JS(
+        "function () {
+            return Math.round(this.value) + 'km';
+        }"
+      )
+    )
+  )
+
+```
+
+The following chart shows a similar trend with participation rates.
+
+```{r}
+trend_part <- loess(part_rate ~ distance, data = chart_data, span = 0.75)
+trend_part <- data.frame(
+  x = as.vector(trend_part$x), 
+  y = trend_part$fitted
+  ) %>% 
+  arrange(x) %>% 
+  highcharter::list_parse()
+
+hchart(
+  chart_data, 
+  type = "point", 
+  hcaes(x = distance, y = part_rate, name = sa3_name_2021),
+  name = "Regional participation rate"
+  ) %>% 
+  hc_add_series(
+    data = trend_part, 
+    type = "spline", 
+    name = "Trend", 
+    enableMouseTracking = FALSE
+    ) %>% 
+  hc_title(
+    text = "Participation rates are lower in Victoria's regional areas"
+  ) %>% 
+  hc_subtitle(
+    text = "Regional ATSI participation rates by distance from Melbourne and smoothed trend line"
+  ) %>% 
+  hc_tooltip(
+    formatter = JS(
+      "function () {
+            return '<strong>' + this.point.name + '</strong></br>'+
+            'Participation rate: ' + Math.round(this.y * 100) + '%</br>' +
+            'Distance from Melbourne: ' + Math.round(this.x) + 'km';
+        }"
+    )
+  ) %>% 
+  hc_yAxis(
+    title = list(text = "Participation rate"),
+    labels = list(
+      formatter = JS(
+        "function () {
+            return Math.round(this.value * 1000) / 10 + '%';
+        }"
+      )
+         
+    )
+  ) %>% 
+  hc_xAxis(
+    title = list(text = "Distance from Melbourne"),
+    labels = list(
+      formatter = JS(
+        "function () {
+            return Math.round(this.value) + 'km';
+        }"
+      )
+    )
+  )
+```
+
+## Data downloads
+
+Full data is available for download here.\
+Alternatively, you can manually explore the data in the following table.
+
+```{r}
+out_data <- combo %>% 
+  st_drop_geometry() %>% 
+  filter(ind == "ATSI") %>% 
+  arrange(desc(date), sa3_name_2021) %>% 
+  select(
+    `Date` = date,
+    `Region` = sa3_name_2021,
+    `Unemployment rate` = unemp_rate,
+    `Participation rate` = part_rate,
+    `Employment to population ratio` = emp_pop
+  )
+
+write_xlsx(out_data, "data/Vic ATSI employment.xlsx")
+
+out_data %>% 
+  mutate(across(where(is.numeric), ~ifelse(. == 0 | . > 1, as.numeric(NA), .))) %>% 
+  mutate(across(where(is.numeric), ~round(., 3) * 100)) %>% 
+  mutate(
+    across(where(is.numeric), ~ifelse(is.na(.), ., paste0(., "%"))),
+    Date = format(Date, "%b %Y")
+    ) %>% 
+  datatable()
+```
+
+## Data quality statement
+
+The information contained in this report attempts to bridge two knowledge gaps; ATSI employment rates since census and fine geographical disaggregation of ATSI employment. These new features may introduce the following errors:
+
+-   **Small regions with few ATSI people may report anomalous results**\
+    For example, if a given region has few ATSI people but they are all employed, the region would report an unemployment rate of zero. Though technically correct for the snapshot of the region during census, this result does not represent the underlying conditions or likelihood of employment for ATSI people living here.
+
+-   **Movements in employment since Census don't capture ATSI-specific changes**\
+    While census provides a reasonably accurate picture of ATSI employment conditions, the [Australian Bureau of Statistics time series employment publication](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) does not provide any detailed ATSI information. This means that if ATSI employment conditions improved or deteriorated at a different rate to the general public, this report will not reflect the additional changes.
+
+-   **Census employment rates do not reconcile with official employment statistics**\
+    As [noted by the Australian Bureau of Statistics](https://www.abs.gov.au/statistics/detailed-methodology-information/information-papers/comparing-2021-census-and-labour-force-survey), Census-based employment statistics will not reconcile with Victoria's official employment statistics. This is not to say Census statistics are inferior; it simply has a different sampling methodology.
+
+Considering the above points, *the data contained within this report should be used for indicative purposes only*. No claim is made as to the accuracy or currency of any of the content in this report at any time. The Victorian Government and this agency (the Department of Jobs, Skills, Industry and Regions) do not accept any liability to any person for the information (or the use of such information) which is provided in this report, including information sourced or derived from third parties or incorporated into the repot by reference.
