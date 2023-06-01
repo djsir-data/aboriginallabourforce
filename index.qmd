@@ -1,5 +1,5 @@
 ---
-title: "ATSI Employment in Victoria"
+title: "Aboriginal Employment in Victoria"
 author: "Strategy and Priority Project - Data and Analytics"
 format: 
   html:
@@ -14,7 +14,7 @@ execute:
   echo: false
   warning: false
 abstract: 
-  "The following data estimates Aboriginal and Torres Straight Islander (ATSI) unemployment rates for Victorian regions as of `r format(readabs::check_latest_date(cat_no = '6291.0.55.001', tables = 16), '%B %Y')`. This data reflects [2021 census employment](https://www.abs.gov.au/statistics/microdata-tablebuilder/tablebuilder) levels for ATSI peoples, adjusted for [fluctuations in regional employment levels](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) that have occurred since August 2021. As the Bureau of Statistics does not report regional statistics for ATSI people at a regional level over time, any changes in employment since August 2021 only reflect the broader region's employment trend, not improvement or deterioration in employment outcomes specific to ATSI people."
+  "The following data estimates Aboriginal employment statistics for Victorian regions as of `r format(readabs::check_latest_date(cat_no = '6291.0.55.001', tables = 16), '%B %Y')`. This data reflects [2021 census employment](https://www.abs.gov.au/statistics/microdata-tablebuilder/tablebuilder) levels for Aboriginal peoples, adjusted for [fluctuations in regional employment levels](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) that have occurred since August 2021. As the Bureau of Statistics does not report  regional statistics for Aboriginal people over time, any changes in employment since August 2021 only reflect the broader region's employment trend, not improvement or deterioration in employment outcomes specific to Aboriginal peoples."
 ---
 
 ```{r output=FALSE}
@@ -93,7 +93,7 @@ combo <- right_join(sa3, census, by = c("sa3_code_2021" = "sa3")) %>%
 ```
 
 ## Headline employment statistics
-The following charts show estimate Victoria-wide ATSI employment statistics and compare them with broader population values. Please note, census-based employment statistics will not reconcile with official labour statistics. For more information [please read the data quality statement](#data-quality). 
+The following charts show estimate Victoria-wide Aboriginal employment statistics and compare them with broader population values. Please note, census-based employment statistics will not reconcile with official labour statistics. For more information [please read the data quality statement](#data-quality). 
 
 ```{r}
 
@@ -127,7 +127,7 @@ headline_data <- census %>%
     part_rate = part_rate * lfs_scalars$part_rate_grow,
     emp_pop = emp_pop * lfs_scalars$emp_pop_grow
   ) %>% 
-  filter(ind != "Non-Indigenous") %>% 
+  filter(ind != "Non-Aboriginal") %>% 
   mutate(ind = recode(ind, total = "All Vic"))
 
 hc_unemp <- headline_data %>% 
@@ -234,7 +234,7 @@ hc_emp_pop
 
 ## Maping employment
 
-The following provides unemployment rates, participation rates and estimate working-age population of ATSI peoples by region. Regions are defined using the [Australian Bureau of Statistics Statistical Area level 3](https://www.abs.gov.au/statistics/statistical-geography/australian-statistical-geography-standard-asgs). Please note that due to sample size issues, some regions may report an unemployment rate of zero. These observations likely represent statistical anomalies rather than underlying conditions.
+The following provides unemployment rates, participation rates and estimate working-age population of Aboriginal peoples by region. Regions are defined using the [Australian Bureau of Statistics Statistical Area level 3](https://www.abs.gov.au/statistics/statistical-geography/australian-statistical-geography-standard-asgs). Please note that due to sample size issues, some regions may report an unemployment rate of zero. These observations likely represent statistical anomalies rather than underlying conditions.
 
 ```{r}
 mapdata <- combo %>% 
@@ -246,11 +246,11 @@ mapdata <- combo %>%
     part_rate = ifelse(part_rate_flag, first(part_rate), part_rate),
   ) %>% 
   ungroup() %>% 
-  filter(date == max(date, na.rm = T), ind == "ATSI") %>% 
+  filter(date == max(date, na.rm = T), ind == "Aboriginal") %>% 
   mutate(
     label = sprintf(
         "<strong style=\"font-size:1rem;\">%s</strong>
-        <p>Estimate ATSI labour statistics:</p>
+        <p>Estimate Aboriginal labour statistics:</p>
         <ul style = \"padding-left: 1.2em;\">
           <li>Unemployment rate: %s%s</li>
           <li>Participation rate: %s%s</li>
@@ -333,7 +333,7 @@ hchart(
     text = "Unemployment rates are higher in Victoria's regional areas"
   ) %>% 
   hc_subtitle(
-    text = "Regional ATSI unemployment rates by distance from Melbourne and smoothed trend line"
+    text = "Regional Aboriginal unemployment rates by distance from Melbourne and smoothed trend line"
   ) %>% 
   hc_tooltip(
     formatter = JS(
@@ -395,7 +395,7 @@ hchart(
     text = "Participation rates are lower in Victoria's regional areas"
   ) %>% 
   hc_subtitle(
-    text = "Regional ATSI participation rates by distance from Melbourne and smoothed trend line"
+    text = "Regional Aboriginal participation rates by distance from Melbourne and smoothed trend line"
   ) %>% 
   hc_tooltip(
     formatter = JS(
@@ -431,12 +431,12 @@ hchart(
 
 ## Data downloads
 
-[Full data is available for download here](https://github.com/djsir-data/atsilabourforce/raw/main/data/Vic%20ATSI%20employment.xlsx). Alternatively, you can manually explore the data in the following table.
+[Full data is available for download here](https://github.com/djsir-data/aboriginallabourforce/raw/main/data/Vic%20Aboriginal%20employment.xlsx). Alternatively, you can manually explore the data in the following table.
 
 ```{r}
 out_data <- combo %>% 
   st_drop_geometry() %>% 
-  filter(ind == "ATSI") %>% 
+  filter(ind == "Aboriginal") %>% 
   arrange(desc(date), sa3_name_2021) %>% 
   select(
     `Date` = date,
@@ -446,7 +446,7 @@ out_data <- combo %>%
     `Employment to population ratio` = emp_pop
   )
 
-write_xlsx(out_data, "data/Vic ATSI employment.xlsx")
+write_xlsx(out_data, "data/Vic Aboriginal employment.xlsx")
 
 out_data %>% 
   mutate(across(where(is.numeric), ~ifelse(. == 0 | . > 1, as.numeric(NA), .))) %>% 
@@ -460,13 +460,13 @@ out_data %>%
 
 ## Data quality statement {#data-quality}
 
-The information contained in this report attempts to bridge two knowledge gaps; ATSI employment rates since census and fine geographical disaggregation of ATSI employment. These new features may introduce the following errors:
+The information contained in this report attempts to bridge two knowledge gaps; Aboriginal employment rates since census and fine geographical disaggregation of Aboriginal employment. These new features may introduce the following errors:
 
--   **Small regions with few ATSI people may report anomalous results**\
-    For example, if a given region has few ATSI people but they are all employed, the region would report an unemployment rate of zero. Though technically correct for the snapshot of the region during census, this result does not represent the underlying conditions or likelihood of employment for ATSI people living here.
+-   **Small regions with few Aboriginal people may report anomalous results**\
+    For example, if a given region has few Aboriginal people but they are all employed, the region would report an unemployment rate of zero. Though technically correct for the snapshot of the region during census, this result does not represent the underlying conditions or likelihood of employment for Aboriginal people living here.
 
--   **Movements in employment since Census don't capture ATSI-specific changes**\
-    While census provides a reasonably accurate picture of ATSI employment conditions, the [Australian Bureau of Statistics time series employment publication](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) does not provide any detailed ATSI information. This means that if ATSI employment conditions improved or deteriorated at a different rate to the general public, this report will not reflect the additional changes.
+-   **Movements in employment since Census don't capture Aboriginal-specific changes**\
+    While census provides a reasonably accurate picture of Aboriginal employment conditions, the [Australian Bureau of Statistics time series employment publication](https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed) does not provide any detailed Aboriginal information. This means that if Aboriginal employment conditions improved or deteriorated at a different rate to the general public, this report will not reflect the additional changes.
 
 -   **Census employment rates do not reconcile with official employment statistics**\
     As [noted by the Australian Bureau of Statistics](https://www.abs.gov.au/statistics/detailed-methodology-information/information-papers/comparing-2021-census-and-labour-force-survey), Census-based employment statistics will not reconcile with Victoria's official employment statistics. This is not to say Census statistics are inferior; it simply has a different sampling methodology.

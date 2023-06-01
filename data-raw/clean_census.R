@@ -10,7 +10,7 @@ census <- census %>%
   select(-contains("drop")) %>% 
   filter(!is.na(count)) %>%
   mutate(
-    ind = ifelse(ind == "Non-Indigenous", ind, "ATSI"),
+    ind = ifelse(str_detect(ind, "Aboriginal"), "Aboriginal", "Non-Aboriginal"),
     lf_stat = str_extract(
       lf_stat, 
       "Employed|Unemployed|Not in the labour force"
