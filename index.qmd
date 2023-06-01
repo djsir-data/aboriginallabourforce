@@ -128,7 +128,13 @@ headline_data <- census %>%
     emp_pop = emp_pop * lfs_scalars$emp_pop_grow
   ) %>% 
   filter(ind != "Non-Aboriginal") %>% 
-  mutate(ind = recode(ind, total = "All Vic"))
+  mutate(
+    ind = recode(
+      ind, 
+      total = "All Victorians", 
+      Aboriginal = "Aboriginal Victorians"
+      )
+    )
 
 hc_unemp <- headline_data %>% 
   hchart(
@@ -471,4 +477,4 @@ The information contained in this report attempts to bridge two knowledge gaps; 
 -   **Census employment rates do not reconcile with official employment statistics**\
     As [noted by the Australian Bureau of Statistics](https://www.abs.gov.au/statistics/detailed-methodology-information/information-papers/comparing-2021-census-and-labour-force-survey), Census-based employment statistics will not reconcile with Victoria's official employment statistics. This is not to say Census statistics are inferior; it simply has a different sampling methodology.
 
-Considering the above points, *the data contained within this report should be used for indicative purposes only*. No claim is made as to the accuracy or currency of any of the content in this report at any time. The Victorian Government and this agency (the Department of Jobs, Skills, Industry and Regions) do not accept any liability to any person for the information (or the use of such information) which is provided in this report, including information sourced or derived from third parties or incorporated into the repot by reference.
+Considering the above points, *the data contained within this report should be used for indicative purposes only*. No claim is made as to the accuracy or currency of any of the content in this report at any time. The Victorian Government and this agency (the Department of Jobs, Skills, Industry and Regions) do not accept any liability to any person for the information (or the use of such information) which is provided in this report, including information sourced or derived from third parties or incorporated into the report by reference.
