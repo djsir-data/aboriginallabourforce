@@ -1,7 +1,9 @@
 ---
 title: "ATSI Employment in Victoria"
 author: "Strategy and Priority Project - Data and Analytics"
-format: html
+format: 
+  html:
+    embed-resources: true
 editor: visual
 date: "`r Sys.Date()`"
 toc: true
