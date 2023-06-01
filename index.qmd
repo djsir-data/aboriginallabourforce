@@ -94,7 +94,6 @@ combo <- right_join(sa3, census, by = c("sa3_code_2021" = "sa3")) %>%
 The following charts show estimate Victoria-wide ATSI employment statistics and compare them with broader population values. Please note, census-based employment statistics will not reconcile with official labour statistics. For more information [please read the data quality statement](#data-quality). 
 
 ```{r}
-#| layout-nrow: 1
 
 lfs_scalars <- lfs_raw %>%
   filter(date >= "2020-08-01", series_3 == "Persons", series_1 == "Victoria") %>%
@@ -136,7 +135,7 @@ hc_unemp <- headline_data %>%
     name = "Unemployment rate"
     ) %>% 
   hc_title(
-    text = "Unemployment</br>rate"
+    text = "Unemployment rate"
   ) %>% 
   hc_tooltip(
     formatter = JS(
@@ -168,7 +167,7 @@ hc_part <- headline_data %>%
     name = "Participation rate"
     ) %>% 
   hc_title(
-    text = "Participation</br>rate"
+    text = "Participation rate"
   ) %>% 
   hc_tooltip(
     formatter = JS(
@@ -200,7 +199,7 @@ hc_emp_pop <- headline_data %>%
     name = "Employment to population ratio"
     ) %>% 
   hc_title(
-    text = "Employment to</br>population ratio"
+    text = "Employment to population ratio"
   ) %>% 
   hc_tooltip(
     formatter = JS(
