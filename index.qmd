@@ -90,43 +90,145 @@ combo <- right_join(sa3, census, by = c("sa3_code_2021" = "sa3")) %>%
   )
 ```
 
-
+## Headline employment statistics
+The following charts show estimate Victoria-wide ATSI employment statistics and compare them with broader population values. Please note, census-based employment statistics will not reconcile with official labour statistics. For more information [please read the data quality statement](#data-quality). 
 
 ```{r}
-## Headline employment statistics 
-# The following charts show estimate Victoria-wide ATSI employment statistics and compare them with broader population values. 
-# lfs_scalars <- lfs_raw %>% 
-#   filter(date >= "2020-08-01", series_3 == "Persons", series_1 == "Victoria") %>% 
-#   select(date, measure = series_2, value) %>% 
-#   pivot_wider(names_from = measure, values_from = value) %>%
-#   arrange(date) %>% 
-#   transmute(
-#     date,
-#     unemp_rate_grow = `Unemployment rate` / first(`Unemployment rate`),
-#     part_rate_grow = `Participation rate` / first(`Participation rate`),
-#     emp_pop_grow = `Employment to population ratio` / 
-#       first(`Employment to population ratio`)
-#   ) %>% 
-#   filter(date == max(date))
-# 
-# headline_data <- census %>% 
-#   group_by(ind) %>% 
-#   summarise(
-#     employed = sum(employed),
-#     unemployed = sum(unemployed),
-#     nilf = sum(nilf)
-#   ) %>% 
-#   ungroup() %>% 
-#   mutate(
-#     unemp_rate = unemployed / (employed + unemployed),
-#     part_rate = (employed + unemployed) / (employed + unemployed + nilf),
-#     emp_pop = employed / (employed + unemployed + nilf),
-#     unemp_rate = unemp_rate * lfs_scalars$unemp_rate_grow,
-#     part_rate = part_rate * lfs_scalars$part_rate_grow,
-#     emp_pop = emp_pop * lfs_scalars$emp_pop_grow
-#   )
+#| layout-nrow: 1
 
+lfs_scalars <- lfs_raw %>%
+  filter(date >= "2020-08-01", series_3 == "Persons", series_1 == "Victoria") %>%
+  select(date, measure = series_2, value) %>%
+  pivot_wider(names_from = measure, values_from = value) %>%
+  arrange(date) %>%
+  transmute(
+    date,
+    unemp_rate_grow = `Unemployment rate` / first(`Unemployment rate`),
+    part_rate_grow = `Participation rate` / first(`Participation rate`),
+    emp_pop_grow = `Employment to population ratio` /
+      first(`Employment to population ratio`)
+  ) %>%
+  filter(date == max(date))
 
+headline_data <- census %>%
+  group_by(ind) %>%
+  summarise(
+    employed = sum(employed),
+    unemployed = sum(unemployed),
+    nilf = sum(nilf)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    unemp_rate = unemployed / (employed + unemployed),
+    part_rate = (employed + unemployed) / (employed + unemployed + nilf),
+    emp_pop = employed / (employed + unemployed + nilf),
+    unemp_rate = unemp_rate * lfs_scalars$unemp_rate_grow,
+    part_rate = part_rate * lfs_scalars$part_rate_grow,
+    emp_pop = emp_pop * lfs_scalars$emp_pop_grow
+  ) %>% 
+  filter(ind != "Non-Indigenous") %>% 
+  mutate(ind = recode(ind, total = "All Vic"))
+
+hc_unemp <- headline_data %>% 
+  hchart(
+    "column", 
+    hcaes(ind, unemp_rate, name = ind), 
+    name = "Unemployment rate"
+    ) %>% 
+  hc_title(
+    text = "Unemployment</br>rate"
+  ) %>% 
+  hc_tooltip(
+    formatter = JS(
+      "function () {
+            return '<strong>' + this.point.name + '</strong></br>'+
+            'Unemployment rate: ' + Math.round(this.y * 1000) / 10 + '%';
+        }"
+    )
+  ) %>% 
+  hc_yAxis(
+    title = list(text = NULL, enabled = FALSE),
+    labels = list(
+      formatter = JS(
+        "function () {
+            return Math.round(this.value * 1000) / 10 + '%';
+        }"
+      )
+         
+    )
+  ) %>% 
+  hc_xAxis(
+    title = list(text = NULL)
+  )
+
+hc_part <- headline_data %>% 
+  hchart(
+    "column", 
+    hcaes(ind, part_rate, name = ind), 
+    name = "Participation rate"
+    ) %>% 
+  hc_title(
+    text = "Participation</br>rate"
+  ) %>% 
+  hc_tooltip(
+    formatter = JS(
+      "function () {
+            return '<strong>' + this.point.name + '</strong></br>'+
+            'Participation rate: ' + Math.round(this.y * 1000) / 10 + '%';
+        }"
+    )
+  ) %>% 
+  hc_yAxis(
+    title = list(text = NULL, enabled = FALSE),
+    labels = list(
+      formatter = JS(
+        "function () {
+            return Math.round(this.value * 100) + '%';
+        }"
+      )
+         
+    )
+  ) %>% 
+  hc_xAxis(
+    title = list(text = NULL)
+  )
+
+hc_emp_pop <- headline_data %>% 
+  hchart(
+    "column", 
+    hcaes(ind, emp_pop, name = ind), 
+    name = "Employment to population ratio"
+    ) %>% 
+  hc_title(
+    text = "Employment to</br>population ratio"
+  ) %>% 
+  hc_tooltip(
+    formatter = JS(
+      "function () {
+            return '<strong>' + this.point.name + '</strong></br>'+
+            'Employment to population ratio: ' + Math.round(this.y * 1000) / 10 + '%';
+        }"
+    )
+  ) %>% 
+  hc_yAxis(
+    title = list(text = NULL, enabled = FALSE),
+    labels = list(
+      formatter = JS(
+        "function () {
+            return Math.round(this.value * 100) + '%';
+        }"
+      )
+         
+    )
+  ) %>% 
+  hc_xAxis(
+    title = list(text = NULL)
+  )
+
+# hw_grid(hc_unemp, hc_part, hc_emp_pop, ncol = 3, add_htmlgrid_css = T)
+hc_unemp
+hc_part
+hc_emp_pop
 ```
 
 ## Maping employment
@@ -328,8 +430,7 @@ hchart(
 
 ## Data downloads
 
-Full data is available for download here.\
-Alternatively, you can manually explore the data in the following table.
+[Full data is available for download here](https://github.com/djsir-data/atsilabourforce/raw/main/data/Vic%20ATSI%20employment.xlsx). Alternatively, you can manually explore the data in the following table.
 
 ```{r}
 out_data <- combo %>% 
@@ -353,10 +454,10 @@ out_data %>%
     across(where(is.numeric), ~ifelse(is.na(.), ., paste0(., "%"))),
     Date = format(Date, "%b %Y")
     ) %>% 
-  datatable()
+  datatable(rownames = F)
 ```
 
-## Data quality statement
+## Data quality statement {#data-quality}
 
 The information contained in this report attempts to bridge two knowledge gaps; ATSI employment rates since census and fine geographical disaggregation of ATSI employment. These new features may introduce the following errors:
 
